@@ -6,16 +6,21 @@ import (
 	"net/http"
 )
 
-type MyHandler struct {}
+type LbHandler struct {}
 
-func (mh *MyHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	fmt.Println("Request received!")
+	url := fmt.Sprintf("http://localhost:7171%s", r.URL.Path)
+	rw.Header().Add(
+		"Location", url,
+	)
+	rw.WriteHeader(307)
 }
 
 func Start() {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
-	myHandler := &MyHandler{}
+	myHandler := &LbHandler{}
 	server := &http.Server{
 		Addr: ":8080",
 		Handler: myHandler,
