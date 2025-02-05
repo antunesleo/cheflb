@@ -5,23 +5,34 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	// "time"
+
+	"github.com/antunesleo/cheflb/internal/lbs"
 )
 
-const forwardMode = "request" // request or redirect
+// "time"
 
-type LbHandler struct {}
+const forwardMode = "redirect" // request or redirect
+
+type LbHandler struct {
+	loadBalancer lbs.LoadBalancer
+}
 
 func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	fmt.Println("Request received!")
-	url := fmt.Sprintf("http://localhost:7171%s", r.URL.Path)
+
+	targetServer := mh.loadBalancer.Balance()
+
+	url := fmt.Sprintf("%s%s", targetServer.Url, r.URL.Path)
 	
 	if forwardMode == "redirect" {
+		fmt.Println("redirect")
 		rw.Header().Add(
 			"Location", url,
 		)
 		rw.WriteHeader(307)
 	} else {
+		fmt.Println("forward")
+
 		client := &http.Client{}
 		var reqBuffer []byte
 		_, err := r.Body.Read(reqBuffer)
@@ -54,7 +65,12 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 func Start() {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
-	myHandler := &LbHandler{}
+	servers := []*lbs.Server{
+		lbs.NewServer("http://localhost:7171"),
+		lbs.NewServer("http://localhost:8181"),
+	}
+	loadBalancer := lbs.NewRoundHobinLb(servers)
+	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
 		Addr: ":8080",
 		Handler: myHandler,
