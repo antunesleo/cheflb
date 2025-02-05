@@ -1,7 +1,7 @@
 package main
 
 import (
-	server "github.com/antunesleo/cheflb/internal"
+	"github.com/antunesleo/cheflb/internal/server"
 )
 
 func main() {
