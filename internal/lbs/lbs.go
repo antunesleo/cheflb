@@ -1,6 +1,9 @@
 package lbs
 
-import "sync"
+import (
+	"sync"
+	"github.com/spaolacci/murmur3"
+)
 
 
 type Server struct {
@@ -12,7 +15,7 @@ func NewServer(url string) *Server {
 }
 
 type LoadBalancer interface {
-	Balance() *Server
+	Balance(ipAddress string) *Server
 }
 
 type RoundRobinLb struct {
@@ -21,7 +24,7 @@ type RoundRobinLb struct {
 	mu sync.Mutex
 }
 
-func (lb *RoundRobinLb) Balance() *Server {
+func (lb *RoundRobinLb) Balance(ipAddress string) *Server {
 	lb.mu.Lock()
 	serverToReturn := lb.servers[lb.index]
 	if lb.index == len(lb.servers)-1 {
@@ -36,4 +39,18 @@ func (lb *RoundRobinLb) Balance() *Server {
 
 func NewRoundHobinLb(servers []*Server) *RoundRobinLb {
 	return &RoundRobinLb{servers: servers, index: 0}
+}
+
+type HashLb struct {
+	servers []*Server
+}
+
+func (lb *HashLb) Balance(ipAddress string) *Server {
+	hash := murmur3.Sum32([]byte("example"))
+	index := hash % uint32(len(lb.servers))
+	return lb.servers[index]
+}
+
+func NewHashLb(servers []*Server) *HashLb {
+	return &HashLb{servers: servers}
 }

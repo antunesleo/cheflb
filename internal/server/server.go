@@ -20,7 +20,7 @@ type LbHandler struct {
 func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	fmt.Println("Request received!")
 
-	targetServer := mh.loadBalancer.Balance()
+	targetServer := mh.loadBalancer.Balance(r.RemoteAddr)
 
 	url := fmt.Sprintf("%s%s", targetServer.Url, r.URL.Path)
 	
@@ -69,7 +69,7 @@ func Start() {
 		lbs.NewServer("http://localhost:7171"),
 		lbs.NewServer("http://localhost:8181"),
 	}
-	loadBalancer := lbs.NewRoundHobinLb(servers)
+	loadBalancer := lbs.NewHashLb(servers)
 	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
 		Addr: ":8080",
