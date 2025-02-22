@@ -1,13 +1,23 @@
 package lbs
 
 import (
+	"strings"
 	"sync"
+
 	"github.com/spaolacci/murmur3"
 )
 
 
 type Server struct {
 	Url string
+}
+
+func (s *Server) UrlWithoutProtocolPrefix() string {
+	prefix := "http://"
+	if strings.HasPrefix(prefix, prefix) {
+		return s.Url[len(prefix):]
+	}
+	return s.Url
 }
 
 func NewServer(url string) *Server {
@@ -53,4 +63,11 @@ func (lb *HashLb) Balance(ipAddress string) *Server {
 
 func NewHashLb(servers []*Server) *HashLb {
 	return &HashLb{servers: servers}
+}
+
+func NewServers() []*Server{
+	return []*Server{
+		NewServer("http://localhost:7171"),
+		NewServer("http://localhost:8181"),
+	}
 }

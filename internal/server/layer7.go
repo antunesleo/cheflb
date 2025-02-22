@@ -62,13 +62,10 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 }
 
-func Start() {
+func Layer7HttpStart() {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
-	servers := []*lbs.Server{
-		lbs.NewServer("http://localhost:7171"),
-		lbs.NewServer("http://localhost:8181"),
-	}
+	servers := lbs.NewServers()
 	loadBalancer := lbs.NewHashLb(servers)
 	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
