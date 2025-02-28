@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/antunesleo/cheflb/internal/server"
 )
-const layer = 4 // options: 4 or 7
+const layer = 7 // options: 4 or 7
 
 func main() {
 	if layer == 4 {

@@ -1,10 +1,11 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/antunesleo/cheflb/internal/lbs"
 )
@@ -22,42 +23,22 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	targetServer := mh.loadBalancer.Balance(r.RemoteAddr)
 
-	url := fmt.Sprintf("%s%s", targetServer.Url, r.URL.Path)
+	targetUrl := fmt.Sprintf("%s%s", targetServer.Url, r.URL.Path)
 	
 	if forwardMode == "redirect" {
 		fmt.Println("redirect")
 		rw.Header().Add(
-			"Location", url,
+			"Location", targetUrl,
 		)
 		rw.WriteHeader(307)
 	} else {
 		fmt.Println("forward")
-
-		client := &http.Client{}
-		var reqBuffer []byte
-		_, err := r.Body.Read(reqBuffer)
+		parsedUrl, err := url.Parse(targetUrl)
 		if err != nil {
 			return
 		}
-		
-	
-		req, err := http.NewRequest(r.Method, url, bytes.NewReader(reqBuffer))
-		if err != nil {
-			return
-		}
-		resp, err := client.Do(req)
-		if err != nil {
-			return
-		}
-
-		var respBuffer []byte
-		_, err = resp.Body.Read(respBuffer)
-		if err != nil {
-			return
-		}
-		rw.Write(respBuffer)
-		rw.WriteHeader(resp.StatusCode)
-
+		rproxy := httputil.NewSingleHostReverseProxy(parsedUrl)
+		rproxy.ServeHTTP(rw, r)
 	}
 
 }
