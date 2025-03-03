@@ -6,13 +6,14 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"time"
 
 	"github.com/antunesleo/cheflb/internal/lbs"
 )
 
 // "time"
 
-const forwardMode = "redirect" // request or redirect
+const forwardMode = "request" // request or redirect
 
 type LbHandler struct {
 	loadBalancer lbs.LoadBalancer
@@ -38,7 +39,12 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 		rproxy := httputil.NewSingleHostReverseProxy(parsedUrl)
+		
+		startTime := time.Now()
 		rproxy.ServeHTTP(rw, r)
+		lastResponseTime := int(time.Since(startTime).Milliseconds())
+		fmt.Println("lastResponseTime", lastResponseTime)
+		targetServer.LastResposteTime = lastResponseTime
 	}
 
 }
@@ -47,7 +53,7 @@ func Layer7HttpStart() {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
 	servers := lbs.NewServers()
-	loadBalancer := lbs.NewHashLb(servers)
+	loadBalancer := lbs.NewLeastRespTimeLb(servers)
 	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
 		Addr: ":8080",

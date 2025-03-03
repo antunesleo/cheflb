@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"sync"
+	"time"
 
 	"github.com/antunesleo/cheflb/internal/lbs"
 )
@@ -13,7 +15,7 @@ func Layer4TcpStart() {
 	fmt.Println("running it on layer4")
 
 	servers := lbs.NewServers()
-	loadBalancer := lbs.NewHashLb(servers)
+	loadBalancer := lbs.NewLeastRespTimeLb(servers)
 
 	tcpListener, err := net.Listen("tcp", ":8080")
 	if err != nil {
@@ -44,6 +46,36 @@ func handleConn(conn net.Conn, lb lbs.LoadBalancer) {
 	}
 	defer remoteConn.Close()
 
-	go io.Copy(remoteConn, conn)
-	io.Copy(conn, remoteConn)
+	forwardConnectionData(remoteConn, conn, server)
+}
+
+func forwardConnectionData(remoteConn net.Conn, conn net.Conn, server *lbs.Server) {
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	startTime := time.Now()
+	
+	go func() {
+		defer wg.Done()
+		io.Copy(remoteConn, conn)
+		// Close the write side of the remote connection to signal EOF
+		if c, ok := remoteConn.(*net.TCPConn); ok {
+			c.CloseWrite()
+		}
+	}()
+	
+	go func() {
+		defer wg.Done()
+		io.Copy(conn, remoteConn)
+		// Close the write side of the client connection to signal EOF
+		if c, ok := conn.(*net.TCPConn); ok {
+			c.CloseWrite()
+		}
+	}()
+
+	// Wait for both copy operations to complete
+	wg.Wait()
+
+	newLastResponseTime := int(time.Since(startTime).Milliseconds())
+	server.LastResposteTime = newLastResponseTime
 }

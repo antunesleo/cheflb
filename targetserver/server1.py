@@ -1,4 +1,6 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import random
+import time
 import urllib.parse
 
 class PrintMeHandler(BaseHTTPRequestHandler):
@@ -12,6 +14,8 @@ class PrintMeHandler(BaseHTTPRequestHandler):
         self.print_request_details()
 
     def print_request_details(self):
+        time.sleep(random.randint(1, 3))
+
         # Parse the full URL with query strings
         parsed_path = urllib.parse.urlparse(self.path)
         query_string = urllib.parse.parse_qs(parsed_path.query)

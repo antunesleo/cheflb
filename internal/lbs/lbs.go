@@ -10,6 +10,7 @@ import (
 
 type Server struct {
 	Url string
+	LastResposteTime int // miliseconds
 }
 
 func (s *Server) UrlWithoutProtocolPrefix() string {
@@ -21,7 +22,7 @@ func (s *Server) UrlWithoutProtocolPrefix() string {
 }
 
 func NewServer(url string) *Server {
-	return &Server{url}
+	return &Server{url, 0}
 }
 
 type LoadBalancer interface {
@@ -63,6 +64,26 @@ func (lb *HashLb) Balance(ipAddress string) *Server {
 
 func NewHashLb(servers []*Server) *HashLb {
 	return &HashLb{servers: servers}
+}
+
+type LeastRespTimeLb struct {
+	servers []*Server
+}
+
+func (lb *LeastRespTimeLb) Balance(ipAddress string) *Server {
+	var leastServer *Server
+	for _, server := range lb.servers {
+		if leastServer == nil {
+			leastServer = server
+		} else if server.LastResposteTime < leastServer.LastResposteTime {
+			leastServer = server
+		}
+	}
+	return leastServer
+}
+
+func NewLeastRespTimeLb(servers []*Server) *LeastRespTimeLb {
+	return &LeastRespTimeLb{servers: servers}
 }
 
 func NewServers() []*Server{
