@@ -3,6 +3,7 @@ package lbs
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/spaolacci/murmur3"
 )
@@ -10,7 +11,11 @@ import (
 
 type Server struct {
 	Url string
-	LastResposteTime int // miliseconds
+	AvgResponseTime int // miliseconds
+}
+
+func (s *Server) UpdateMeanResponseTime(responseTimeDuration time.Duration) {
+	s.AvgResponseTime = (s.AvgResponseTime + int(responseTimeDuration.Milliseconds())) / 2
 }
 
 func (s *Server) UrlWithoutProtocolPrefix() string {
@@ -75,7 +80,7 @@ func (lb *LeastRespTimeLb) Balance(ipAddress string) *Server {
 	for _, server := range lb.servers {
 		if leastServer == nil {
 			leastServer = server
-		} else if server.LastResposteTime < leastServer.LastResposteTime {
+		} else if server.AvgResponseTime < leastServer.AvgResponseTime {
 			leastServer = server
 		}
 	}

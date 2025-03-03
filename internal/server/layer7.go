@@ -42,9 +42,7 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		
 		startTime := time.Now()
 		rproxy.ServeHTTP(rw, r)
-		lastResponseTime := int(time.Since(startTime).Milliseconds())
-		fmt.Println("lastResponseTime", lastResponseTime)
-		targetServer.LastResposteTime = lastResponseTime
+		targetServer.UpdateMeanResponseTime(time.Since(startTime))
 	}
 
 }

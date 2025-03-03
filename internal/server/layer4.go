@@ -76,6 +76,5 @@ func forwardConnectionData(remoteConn net.Conn, conn net.Conn, server *lbs.Serve
 	// Wait for both copy operations to complete
 	wg.Wait()
 
-	newLastResponseTime := int(time.Since(startTime).Milliseconds())
-	server.LastResposteTime = newLastResponseTime
+	server.UpdateMeanResponseTime(time.Since(startTime))
 }
