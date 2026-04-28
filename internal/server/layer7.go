@@ -53,6 +53,17 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 }
 
+// Layer7HttpStart serves HTTP on :8080. Each request is parsed and a
+// backend is picked per-request; requests are then reverse-proxied or
+// 307-redirected, controlled by forwardMode.
+//
+// L7 trade-offs: per-request balancing, content-aware routing, and
+// header manipulation — but HTTP-only, heavier than L4, with a parser
+// to defend.
+//
+// Limits here: forwardMode is a compile-time constant, the reverse proxy
+// is allocated per request, the query string is dropped (uses Path, not
+// RawQuery), no timeouts, no TLS, no retries.
 func Layer7HttpStart(loadBalancer lbs.LoadBalancer) {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 

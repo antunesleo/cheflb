@@ -10,6 +10,16 @@ import (
 	"github.com/antunesleo/cheflb/internal/lbs"
 )
 
+// Layer4TcpStart accepts TCP on :8080 and pipes bytes between each client
+// and a backend picked once per connection by loadBalancer.
+//
+// L4 trade-offs: protocol-agnostic and fast (any protocol over TCP), but
+// can't route by URL/header and can't rebalance requests sharing one
+// keep-alive/HTTP-2 connection.
+//
+// Limits here: no timeouts, no health checks, no graceful shutdown. The
+// "response time" recorded for least-response-time balancing is TCP
+// session lifetime, not request latency — mostly noise on L4.
 func Layer4TcpStart(loadBalancer lbs.LoadBalancer) {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 	fmt.Println("running it on layer4")
