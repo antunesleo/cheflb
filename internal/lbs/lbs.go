@@ -2,7 +2,7 @@ package lbs
 
 import (
 	"strings"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/spaolacci/murmur3"
@@ -11,11 +11,16 @@ import (
 
 type Server struct {
 	Url string
-	AvgResponseTime int // miliseconds
+	// AvgResponseTime is read by Balance() and written by
+	// UpdateMeanResponseTime() from many goroutines, so it's atomic. We tolerate
+	// the rare lost-update from racing read-modify-writes — the metric is
+	// already a noisy estimate — but reads must never tear or be optimized away.
+	AvgResponseTime atomic.Int64 // milliseconds
 }
 
 func (s *Server) UpdateMeanResponseTime(responseTimeDuration time.Duration) {
-	s.AvgResponseTime = (s.AvgResponseTime + int(responseTimeDuration.Milliseconds())) / 2
+	old := s.AvgResponseTime.Load()
+	s.AvgResponseTime.Store((old + responseTimeDuration.Milliseconds()) / 2)
 }
 
 func (s *Server) UrlWithoutProtocolPrefix() string {
@@ -27,7 +32,7 @@ func (s *Server) UrlWithoutProtocolPrefix() string {
 }
 
 func NewServer(url string) *Server {
-	return &Server{url, 0}
+	return &Server{Url: url}
 }
 
 type LoadBalancer interface {
@@ -36,25 +41,18 @@ type LoadBalancer interface {
 
 type RoundRobinLb struct {
 	servers []*Server
-	index int
-	mu sync.Mutex
+	// counter is incremented atomically per request; the index is derived
+	// with `% len(servers)`. uint64 won't realistically overflow.
+	counter atomic.Uint64
 }
 
 func (lb *RoundRobinLb) Balance(ipAddress string) *Server {
-	lb.mu.Lock()
-	serverToReturn := lb.servers[lb.index]
-	if lb.index == len(lb.servers)-1 {
-		lb.index = 0
-	} else {
-		lb.index += 1
-	}
-
-	lb.mu.Unlock()
-	return serverToReturn
+	i := lb.counter.Add(1) - 1
+	return lb.servers[i%uint64(len(lb.servers))]
 }
 
 func NewRoundHobinLb(servers []*Server) *RoundRobinLb {
-	return &RoundRobinLb{servers: servers, index: 0}
+	return &RoundRobinLb{servers: servers}
 }
 
 // HashLb maps each client to a backend by hashing a client identifier and
@@ -102,7 +100,7 @@ func (lb *LeastRespTimeLb) Balance(ipAddress string) *Server {
 	for _, server := range lb.servers {
 		if leastServer == nil {
 			leastServer = server
-		} else if server.AvgResponseTime < leastServer.AvgResponseTime {
+		} else if server.AvgResponseTime.Load() < leastServer.AvgResponseTime.Load() {
 			leastServer = server
 		}
 	}

@@ -15,7 +15,7 @@ func Layer4TcpStart() {
 	fmt.Println("running it on layer4")
 
 	servers := lbs.NewServers()
-	loadBalancer := lbs.NewLeastRespTimeLb(servers)
+	loadBalancer := lbs.NewRoundHobinLb(servers)
 
 	tcpListener, err := net.Listen("tcp", ":8080")
 	if err != nil {
