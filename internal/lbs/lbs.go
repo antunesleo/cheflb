@@ -18,9 +18,31 @@ type Server struct {
 	AvgResponseTime atomic.Int64 // milliseconds
 }
 
+// alpha is the EWMA weight on the newest sample. Higher = more reactive to
+// recent changes, lower = smoother. 0.5 is quite reactive — one slow sample
+// swings the average heavily; production EWMAs commonly use ~0.1 for
+// stability.
+const alpha = 0.5
+
+// UpdateMeanResponseTime folds a new response-time sample into AvgResponseTime
+// using an exponentially weighted moving average (EWMA).
+//
+// An EWMA is a running average where recent samples count more than older
+// ones, with each sample's influence decaying exponentially as newer samples
+// arrive. It's the standard alternative to a simple mean (which weights all
+// samples equally forever) and a sliding window (which needs you to keep the
+// last N values). The formula is:
+//
+//	new_avg = α·sample + (1−α)·old_avg
+//
+// Two nice properties: only one running number needs to be stored (no
+// history buffer), and an old sample's weight after n updates is (1−α)^n —
+// recent values dominate, ancient ones fade out automatically.
 func (s *Server) UpdateMeanResponseTime(responseTimeDuration time.Duration) {
 	old := s.AvgResponseTime.Load()
-	s.AvgResponseTime.Store((old + responseTimeDuration.Milliseconds()) / 2)
+	sample := responseTimeDuration.Milliseconds()
+	updated := int64(alpha*float64(sample) + (1-alpha)*float64(old))
+	s.AvgResponseTime.Store(updated)
 }
 
 func (s *Server) UrlWithoutProtocolPrefix() string {
@@ -39,10 +61,16 @@ type LoadBalancer interface {
 	Balance(ipAddress string) *Server
 }
 
+// RoundRobinLb cycles through servers in order: 0, 1, ..., N-1, 0, ....
+// An atomic counter gives each request a unique ticket; `% N` picks the
+// server. Fair under uniform load, no mutex needed.
+//
+// Trade-offs: no client affinity (one user's requests can hit different
+// backends — bad for sticky sessions), load-blind (counts requests, not
+// work — slow servers still get their turn), health-blind (a dead backend
+// keeps being picked until removed from the slice).
 type RoundRobinLb struct {
 	servers []*Server
-	// counter is incremented atomically per request; the index is derived
-	// with `% len(servers)`. uint64 won't realistically overflow.
 	counter atomic.Uint64
 }
 
@@ -91,6 +119,16 @@ func NewHashLb(servers []*Server) *HashLb {
 	return &HashLb{servers: servers}
 }
 
+// LeastRespTimeLb picks the server with the lowest avg response time —
+// adaptive, routes around slow backends without explicit health checks.
+//
+// Caveats:
+//   - Cold start: all servers begin at 0, so traffic piles on servers[0]
+//     until its avg rises, then onto servers[1]. P2C (pick 2 random, take
+//     the lower) is the usual fix.
+//   - The EWMA uses α=0.5, weighting the newest sample at 50%; one slow
+//     request blackholes a server. Production EWMAs use α≈0.1.
+//   - Latency != health: a fast 500 looks faster than a healthy 50ms.
 type LeastRespTimeLb struct {
 	servers []*Server
 }
