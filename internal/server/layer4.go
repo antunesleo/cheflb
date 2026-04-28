@@ -10,12 +10,9 @@ import (
 	"github.com/antunesleo/cheflb/internal/lbs"
 )
 
-func Layer4TcpStart() {
+func Layer4TcpStart(loadBalancer lbs.LoadBalancer) {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 	fmt.Println("running it on layer4")
-
-	servers := lbs.NewServers()
-	loadBalancer := lbs.NewRoundHobinLb(servers)
 
 	tcpListener, err := net.Listen("tcp", ":8080")
 	if err != nil {
@@ -35,9 +32,12 @@ func Layer4TcpStart() {
 
 func handleConn(conn net.Conn, lb lbs.LoadBalancer) {
 	defer conn.Close()
-	ipAddress := conn.LocalAddr().String()
-	server := lb.Balance(ipAddress)
-	fmt.Printf("balancing %s -> %s\n", ipAddress, server.Url)
+	clientIP, _, err := net.SplitHostPort(conn.RemoteAddr().String())
+	if err != nil {
+		clientIP = conn.RemoteAddr().String()
+	}
+	server := lb.Balance(clientIP)
+	fmt.Printf("balancing %s -> %s\n", clientIP, server.Url)
 
 	remoteConn, err := net.Dial("tcp", server.UrlWithoutProtocolPrefix())
 	if err != nil {

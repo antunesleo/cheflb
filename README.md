@@ -8,7 +8,7 @@ Forwards incoming traffic to a pool of backend servers using one of several bala
 
 ## Layout
 
-- `cmd/server/main.go` — entry point. Pick layer 4 or 7 via the `layer` constant.
+- `cmd/server/main.go` — entry point. Reads `CHEFLB_LAYER` and `CHEFLB_ALGORITHM`, builds the LB, and starts the chosen server.
 - `internal/server/layer4.go` — TCP listener that bidirectionally pipes bytes between client and chosen backend.
 - `internal/server/layer7.go` — HTTP handler that either reverse-proxies (`forwardMode = "request"`) or redirects (`"redirect"`).
 - `internal/lbs/lbs.go` — the `LoadBalancer` interface and its implementations.
@@ -18,9 +18,9 @@ Forwards incoming traffic to a pool of backend servers using one of several bala
 
 All implement `Balance(ipAddress string) *Server`:
 
-- **Round robin** (`RoundRobinLb`) — cycles through the pool in order; mutex-guarded index.
-- **Hash** (`HashLb`) — MurmurHash3 of the client IP modulo pool size, giving stable client→backend affinity.
-- **Least response time** (`LeastRespTimeLb`) — picks the server with the lowest running mean response time, updated after each request.
+- **Round robin** (`round_robin`, `RoundRobinLb`) — cycles through the pool in order via an atomic counter.
+- **Hash** (`hash`, `HashLb`) — MurmurHash3 of the client IP modulo pool size, giving stable client→backend affinity.
+- **Least response time** (`least_response_time`, `LeastRespTimeLb`) — picks the server with the lowest EWMA of response time.
 
 ## Run it
 
@@ -37,4 +37,17 @@ Then build and run the LB on `:8080`:
 make run
 ```
 
-Switch strategy by editing the `New*Lb(...)` call in `layer4.go` / `layer7.go`. Switch layer via the `layer` constant in `cmd/server/main.go`.
+## Configuration
+
+Configured via environment variables:
+
+- `CHEFLB_LAYER` — `4` or `7`. Default `7`.
+- `CHEFLB_ALGORITHM` — `round_robin`, `hash`, or `least_response_time`. Default `round_robin`.
+
+Example:
+
+```sh
+CHEFLB_LAYER=4 CHEFLB_ALGORITHM=hash make run
+```
+
+Invalid values cause the binary to exit at startup with a clear error.

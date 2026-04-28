@@ -53,11 +53,9 @@ func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 }
 
-func Layer7HttpStart() {
+func Layer7HttpStart(loadBalancer lbs.LoadBalancer) {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
-	servers := lbs.NewServers()
-	loadBalancer := lbs.NewHashLb(servers)
 	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
 		Addr: ":8080",
