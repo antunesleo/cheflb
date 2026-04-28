@@ -37,6 +37,7 @@ func handleConn(conn net.Conn, lb lbs.LoadBalancer) {
 	defer conn.Close()
 	ipAddress := conn.LocalAddr().String()
 	server := lb.Balance(ipAddress)
+	fmt.Printf("balancing %s -> %s\n", ipAddress, server.Url)
 
 	remoteConn, err := net.Dial("tcp", server.UrlWithoutProtocolPrefix())
 	if err != nil {

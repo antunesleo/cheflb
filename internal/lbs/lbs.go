@@ -57,12 +57,34 @@ func NewRoundHobinLb(servers []*Server) *RoundRobinLb {
 	return &RoundRobinLb{servers: servers, index: 0}
 }
 
+// HashLb maps each client to a backend by hashing a client identifier and
+// taking `hash % N`. Same client -> same server every time, with no state
+// stored on the LB. Useful when servers hold per-client state (in-memory
+// sessions, caches, WebSockets).
+//
+// Two production caveats this implementation does NOT address:
+//
+// 1) `hash % N` reshuffles almost everyone when the pool changes. Adding
+//    or removing one server changes the modulo for most clients, so
+//    sticky sessions break and per-client caches all miss at once.
+//    Production LBs use algorithms that move only ~1/N of clients on a
+//    pool change: consistent hashing (servers placed on a virtual ring,
+//    each client maps to the next one clockwise) or rendezvous/HRW hashing
+//    (hash (client, server) for every server, pick the highest score).
+//
+// 2) Hashing the client IP is fragile. Home wifi, office networks, and
+//    mobile carriers all hide many devices behind a single public IP, so
+//    those users collapse onto one backend and skew the load. A user's IP
+//    also changes when they switch networks (wifi <-> LTE, VPN), so they
+//    lose their assigned server. Real LBs usually hash a session cookie or
+//    user ID instead — those actually identify the client, rather than
+//    the network they happen to be on.
 type HashLb struct {
 	servers []*Server
 }
 
 func (lb *HashLb) Balance(ipAddress string) *Server {
-	hash := murmur3.Sum32([]byte("example"))
+	hash := murmur3.Sum32([]byte(ipAddress))
 	index := hash % uint32(len(lb.servers))
 	return lb.servers[index]
 }

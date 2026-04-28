@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -22,7 +23,12 @@ type LbHandler struct {
 func (mh *LbHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	fmt.Println("Request received!")
 
-	targetServer := mh.loadBalancer.Balance(r.RemoteAddr)
+	clientIP, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		clientIP = r.RemoteAddr
+	}
+	targetServer := mh.loadBalancer.Balance(clientIP)
+	fmt.Printf("balancing %s -> %s\n", clientIP, targetServer.Url)
 
 	targetUrl := fmt.Sprintf("%s%s", targetServer.Url, r.URL.Path)
 	
@@ -51,7 +57,7 @@ func Layer7HttpStart() {
 	fmt.Println("Welcome to Chef Loadbalancer!")
 
 	servers := lbs.NewServers()
-	loadBalancer := lbs.NewLeastRespTimeLb(servers)
+	loadBalancer := lbs.NewHashLb(servers)
 	myHandler := &LbHandler{loadBalancer}
 	server := &http.Server{
 		Addr: ":8080",
